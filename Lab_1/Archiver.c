@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <utime.h>
 #include <dirent.h>
 #include <string.h>
 #include <errno.h>
@@ -20,7 +21,8 @@ struct Metadata
     
     struct timespec File_atim;      //время последнего доступа
     struct timespec File_mtim;      //время последней модификации
-    struct timespec File_ctim;       //время последней смены прав
+    //stackoverflow сказал что просто так не поменять
+    //struct timespec File_ctim;       //время последней смены прав
 };
 
 void RecursiveArchive(char *dir, int outFD);
@@ -62,18 +64,17 @@ void RecursiveArchive(char *dir, int outfd)
         {
             if (strcmp(".", entry->d_name) != 0 && strcmp("..", entry->d_name) != 0)
             {
-
-            //заносим метаданные о папке
-            strcpy(mdbuf.Filename, dir);
-            mdbuf.Filemode = statbuf.st_mode;
-            mdbuf.File_uid = statbuf.st_uid;
-            mdbuf.File_gid = statbuf.st_gid;
-            mdbuf.File_atim = statbuf.st_atim;
-            mdbuf.File_mtim = statbuf.st_mtim;
-            mdbuf.File_ctim = statbuf.st_ctim;
-            mdbuf.Filesize = 0;
-            write(outfd, &mdbuf, sizeof(mdbuf));
-            RecursiveArchive(dir, outfd);
+                //заносим метаданные о папке
+                strcpy(mdbuf.Filename, dir);
+                mdbuf.Filemode = statbuf.st_mode;
+                mdbuf.File_uid = statbuf.st_uid;
+                mdbuf.File_gid = statbuf.st_gid;
+                mdbuf.File_atim = statbuf.st_atim;
+                mdbuf.File_mtim = statbuf.st_mtim;
+                //mdbuf.File_ctim = statbuf.st_ctim;
+                mdbuf.Filesize = 0;
+                write(outfd, &mdbuf, sizeof(mdbuf));
+                RecursiveArchive(dir, outfd);
             }
         }
         else
@@ -84,7 +85,7 @@ void RecursiveArchive(char *dir, int outfd)
             mdbuf.File_gid = statbuf.st_gid;
             mdbuf.File_atim = statbuf.st_atim;
             mdbuf.File_mtim = statbuf.st_mtim;
-            mdbuf.File_ctim = statbuf.st_ctim;
+            //mdbuf.File_ctim = statbuf.st_ctim;
             mdbuf.Filesize = statbuf.st_size / MAX_BUFFER_SIZE + (statbuf.st_size%MAX_BUFFER_SIZE != 0);
             write(outfd, &mdbuf, sizeof(mdbuf));
 
@@ -160,11 +161,7 @@ void RecursiveArchive(char *dir, int outfd)
 void Unarchive(char *in, char *dir)
 {
     char buf[MAX_BUFFER_SIZE] = "\0";
-    int infd, out_fd;
-    ssize_t size;
-    DIR *dp;
-    struct dirent *entry;
-    struct stat statbuf;
+    int infd, outfd;
     struct Metadata mdbuf;
 
     //открытие архива
@@ -174,20 +171,40 @@ void Unarchive(char *in, char *dir)
     read(infd, buf, MAX_BUFFER_SIZE);
     mkdir(buf, S_IRWXU);
 
-    while (read(infd, buf, MAX_BUFFER_SIZE) == MAX_BUFFER_SIZE)
+    while (read(infd, &mdbuf, sizeof(mdbuf)) == sizeof(mdbuf))
     {
-        if (1)
+        if (S_ISDIR(mdbuf.Filemode))
         {
-
+            mkdir(mdbuf.Filename, mdbuf.Filemode);
+            chown(mdbuf.Filename, mdbuf.File_uid, mdbuf.File_gid);
+            struct utimbuf FileTimes;
+            FileTimes.actime = mdbuf.File_atim.tv_sec;
+            FileTimes.modtime = mdbuf.File_mtim.tv_sec;
+            utime(mdbuf.Filename, &FileTimes);
         }
+        else
+        {
+            outfd = open(mdbuf.Filename, O_WRONLY | O_CREAT, mdbuf.Filemode);
 
-        mkdir(buf, S_IRWXU);
+            for (int i = 0; i< mdbuf.Filesize; i++)
+            {
+                int size = read(infd, buf, MAX_BUFFER_SIZE);
+                write(outfd, buf, strlen(buf));
+            }
+            chown(mdbuf.Filename, mdbuf.File_uid, mdbuf.File_gid);
+            struct utimbuf FileTimes;
+            FileTimes.actime = mdbuf.File_atim.tv_sec;
+            FileTimes.modtime = mdbuf.File_mtim.tv_sec;
+            utime(mdbuf.Filename, &FileTimes);
+            close(outfd);    
+        }
     }
+    close(infd);
 }
 
 int main(int argc, char *argv[])
 {
     Archive(argv[1], argv[2]);
-    //Unarchive("out", "../../");
+    Unarchive("out", "../../");
     exit(0);
 }
