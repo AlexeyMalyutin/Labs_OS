@@ -98,65 +98,6 @@ void RecursiveArchive(char *dir, int outfd)
     }
 
 }
-//старая версия (моооожет потом ее)
-/* void RecursiveArchiveOLD(char *dir, int outFD)
-{
-    char buf[MAX_BUFFER_SIZE] = "\0";
-    int in_fd, out_fd;
-    ssize_t size;
-    DIR *dirp;
-    struct dirent *entry;
-    struct stat statbuf;
-    struct Metadata mdbuf;
-
-    if ((dirp = opendir(dir)) == NULL)
-    {
-        write(2, "We made a fuckie-wuckie, uwu", 28);
-        exit(1);
-    }
-
-    chdir(dir);
-
-    while ((entry = readdir(dirp)) != NULL)
-    {
-        lstat(entry->d_name, &statbuf);
-        if (S_ISDIR(statbuf.st_mode))
-        {
-            if (strcmp(".", entry->d_name) == 0 || strcmp("..", entry->d_name) == 0)
-                continue;
-
-            //заносим метаданные о папке
-            strcpy(mdbuf.Filename, strcat(strcat(dir, "/"), entry->d_name));
-            strcpy(mdbuf.FileType, "Folder");
-            size = 0;
-            write(outFD, &mdbuf, sizeof(mdbuf));
-            //переходим внутрь папки и вызываем функцию рекурсивно
-            RecursiveArchive(entry->d_name, outFD);
-        }
-        else
-        {
-            //открытие архивируемого файла
-            in_fd = open(entry->d_name, O_RDONLY);
-
-            //запись метаданных
-            strcpy(mdbuf.Filename, entry->d_name);
-            strcpy(mdbuf.FileType, "Binary");
-            mdbuf.Filesize = lseek(in_fd, SEEK_END, 0)/MAX_BUFFER_SIZE + (lseek(in_fd, SEEK_END, 0)%MAX_BUFFER_SIZE != 0);
-            write(outFD, &mdbuf, sizeof(mdbuf));
-
-            //запись в архив содержимого архивируемого файла
-            lseek(in_fd, SEEK_SET, 0);
-            while (read(in_fd, buf, MAX_BUFFER_SIZE) != 0)
-                write(outFD, buf, MAX_BUFFER_SIZE);
-
-            //закрытие архивируемого файла
-            close(in_fd);
-        }
-    }
-    //закончили с этой папкой, возвращаемся на уровень выше
-    chdir("..");
-    close(out_fd);
-} */
 
 void Unarchive(char *in, char *dir)
 {
@@ -165,7 +106,11 @@ void Unarchive(char *in, char *dir)
     struct Metadata mdbuf;
 
     //открытие архива
-    infd = open(in, O_RDONLY);
+    if (infd = open(in, O_RDONLY) == -1)
+    {
+        write(2, "ERROR\n", 6);
+        exit(1);
+    }
 
     chdir(dir);
     read(infd, buf, MAX_BUFFER_SIZE);
