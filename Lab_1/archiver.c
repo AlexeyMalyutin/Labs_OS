@@ -24,8 +24,7 @@ struct Metadata
     //stackoverflow сказал что просто так не поменять
     //struct timespec File_ctim;       //время последней смены прав
 };
-
-void RecursiveArchive(char *dir, int outFD);
+void RecursiveArchive(char *, int);
 
 void Archive(char *dir, char *out)
 {
@@ -97,59 +96,4 @@ void RecursiveArchive(char *dir, int outfd)
         dir[(int)(strrchr(dir, '/') - dir)]='\0';
     }
 
-}
-
-void Unarchive(char *in, char *dir)
-{
-    char buf[MAX_BUFFER_SIZE] = "\0";
-    int infd, outfd;
-    struct Metadata mdbuf;
-
-    //открытие архива
-    if (infd = open(in, O_RDONLY) == -1)
-    {
-        write(2, "ERROR\n", 6);
-        exit(1);
-    }
-
-    chdir(dir);
-    read(infd, buf, MAX_BUFFER_SIZE);
-    mkdir(buf, S_IRWXU);
-
-    while (read(infd, &mdbuf, sizeof(mdbuf)) == sizeof(mdbuf))
-    {
-        if (S_ISDIR(mdbuf.Filemode))
-        {
-            mkdir(mdbuf.Filename, mdbuf.Filemode);
-            chown(mdbuf.Filename, mdbuf.File_uid, mdbuf.File_gid);
-            struct utimbuf FileTimes;
-            FileTimes.actime = mdbuf.File_atim.tv_sec;
-            FileTimes.modtime = mdbuf.File_mtim.tv_sec;
-            utime(mdbuf.Filename, &FileTimes);
-        }
-        else
-        {
-            outfd = open(mdbuf.Filename, O_WRONLY | O_CREAT, mdbuf.Filemode);
-
-            for (int i = 0; i< mdbuf.Filesize; i++)
-            {
-                int size = read(infd, buf, MAX_BUFFER_SIZE);
-                write(outfd, buf, strlen(buf));
-            }
-            chown(mdbuf.Filename, mdbuf.File_uid, mdbuf.File_gid);
-            struct utimbuf FileTimes;
-            FileTimes.actime = mdbuf.File_atim.tv_sec;
-            FileTimes.modtime = mdbuf.File_mtim.tv_sec;
-            utime(mdbuf.Filename, &FileTimes);
-            close(outfd);    
-        }
-    }
-    close(infd);
-}
-
-int main(int argc, char *argv[])
-{
-    Archive(argv[1], argv[2]);
-    Unarchive("out", "../../");
-    exit(0);
 }
